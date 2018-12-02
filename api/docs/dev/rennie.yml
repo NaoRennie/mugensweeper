@@ -26,7 +26,7 @@ tags:
       - block
     summary: "クリックした場所の情報を取る"
     description: |
-      # - status
+  # - status
       #   - コマが置けたかtrue, falaseで返す
       - クリックした場所のxとyの情報
     parameters:
