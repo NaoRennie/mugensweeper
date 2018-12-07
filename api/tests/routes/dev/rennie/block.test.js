@@ -79,9 +79,31 @@ describe('前のゲーム情報のリセット処理、および、リクエス�
   //     lastBody = body;
   //   }
   //   // Then
-  //   // 爆弾個数
-  //   const bomNumber = positions.length * 8 * 0.375;
-  //   expect(lastBody).toHaveLength(bomNumber);
-  //   // expect(lastBody).toEqual(expect.arrayContaining([initialBlock(), ...positions2]));
+
+  //   const matchers = [{ x: 1, y: 0 }, { x: 2, y: 0 }];
+
+  //   expect(lastBody).toHaveLength(matchers.length + 1);
+  //   expect(lastBody).toEqual(expect.arrayContaining([initialBlock(), ...matchers]));
   // });
+  it('爆弾の配置', async () => {
+    // 前のテストのBlockをサーバーから消しておく
+    await chai.request(app).delete('/dev/rennie/block');
+    // Given
+    const positions = [{ x: 1, y: 0 }, { x: 2, y: 0 }];
+    // When
+    let lastBody;
+    for (let i = 0; i < positions.length; i += 1) {
+      const { body } = await chai
+        .request(app)
+        .post('/dev/rennie/block')
+        .set('content-type', 'application/x-www-form-urlencoded')
+        .send(positions[i]);
+      lastBody = body;
+    }
+    // Then
+    // 爆弾個数
+    const bomNumber = positions.length * 8 * 0.375;
+    expect(lastBody).toHaveLength(bomNumber);
+    // expect(lastBody).toEqual(expect.arrayContaining([initialBlock(), ...positions2]));
+  });
 });
