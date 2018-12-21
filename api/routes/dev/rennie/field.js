@@ -1,9 +1,6 @@
 const router = require('express').Router();
-const { getField, initField } = require('../../../models/dev/rennie/fieldStore.js');
 
-router.route('/').get(async (req, res) => {
-  await initField();
-  res.json(await getField());
+router.route('/').get((req, res) => {
+  res.json([{ x: 0, y: 0 }]);
 });
-
 module.exports = router;
