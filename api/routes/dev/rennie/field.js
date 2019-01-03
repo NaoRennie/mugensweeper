@@ -5,5 +5,4 @@ router.route('/').get(async (req, res) => {
   await initField();
   res.json(await getField());
 });
-
 module.exports = router;

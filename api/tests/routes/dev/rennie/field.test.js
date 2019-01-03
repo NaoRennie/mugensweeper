@@ -9,14 +9,13 @@ const propFilter = '-_id -__v';
 const initialBlock = () => ({ x: 0, y: 0 });
 
 // integration test
-
 describe('field apiについてのテスト', () => {
   beforeAll(connectDB);
   beforeEach(initField);
   afterEach(dropDB);
   afterAll(disconnectDB);
   it('初期状態のfieldを取得する', async () => {
-    // Given ないこともあ
+    // Given
 
     // When
     const { body } = await chai.request(app).get('/dev/rennie/field');
