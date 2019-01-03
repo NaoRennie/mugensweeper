@@ -21,6 +21,9 @@ module.exports = {
     addedBom.push(block);
   },
   async saveData() {
+    // let result = bomMap.filter(i =>
+    //   addedBom.indexOf(bomMap[i])=== -1
+    //   ):
     const newBomHistory = [];
     for (let i = 0; i < addedBom.length; i += 1) {
       if (bomMap.indexOf(addedBom[i]) === -1) {
