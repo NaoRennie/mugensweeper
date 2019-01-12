@@ -1,27 +1,36 @@
 <template>
   <section class="container">
     <modal v-if="overlay" @closeOverlay="closeOverlay" />
-    <user-name-input v-if="!token && !overlay" @register-name="registerName" />
+    <user-name-input v-if="visibleName" @register-name="registerName" />
+    <ranking v-if="visibleRanking" :ranked-users="rankedUsers" />
 
-    <div class="field">
+    <div
+      class="field"
+      @touchstart="onTouchStart"
+      @mousedown="setInitPos"
+      @touchmove.prevent="onTouchMove"
+      @mousemove="gridMove"
+      @touchend.prevent="onTouchEnd"
+      @touchcancel.prevent="onTouchEnd"
+      @mouseup.prevent="onTouchEnd"
+      @click.left="getRelativeCoordinates"
+    >
       <svg viewbox="0 0 100% 100%" width="100%" height="100%">
         <line
           class="border-x"
           v-for="i in gridY + infinitLine"
           :key="'borderX' + i"
-          x1="0"
           :x2="$window.width"
-          :y1="calcBorderPos(i).y"
-          :y2="calcBorderPos(i).y"
+          :y1="borderPos(i).y"
+          :y2="borderPos(i).y"
         />
 
         <line
           class="border-y"
           v-for="i in gridX + infinitLine"
           :key="'borderY' + i"
-          :x1="calcBorderPos(i).x"
-          :x2="calcBorderPos(i).x"
-          y1="0"
+          :x1="borderPos(i).x"
+          :x2="borderPos(i).x"
           :y2="$window.height"
         />
 
@@ -29,15 +38,31 @@
           class="rect"
           v-for="(block, i) in blocks"
           :key="'block' + i"
-          :x="calcObjPos(block).x"
-          :y="calcObjPos(block).y"
-          :width="30"
-          :height="30"
+          :x="objPos(block).x"
+          :y="objPos(block).y"
+          :width="gridWidth"
+          :height="gridWidth"
+        />
+
+        <!-- 原点がわかりやすいように識別 -->
+        <rect
+          class="rect2"
+          :x="objPos(originOfCoordinates).x"
+          :y="objPos(originOfCoordinates).y"
+          :width="gridWidth"
+          :height="gridWidth"
         />
       </svg>
     </div>
 
-    <ranking v-if="token && !overlay" :ranked-users="rankedUsers" />
+    <div class="target">
+      <div
+        v-for="(block, i) in blocks"
+        :class="{ 'splite-bomb': block.exploded }"
+        :style="styles(block)"
+        :key="i"
+      />
+    </div>
   </section>
 </template>
 
@@ -45,12 +70,13 @@
 import Modal from '~/components/Modal.vue';
 import Ranking from '~/components/Ranking.vue';
 import UserNameInput from '~/components/UserNameInput.vue';
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapMutations } from 'vuex';
 
 export default {
   data() {
     return {
       overlay: true,
+      touchTime: null,
     };
   },
   components: {
@@ -59,56 +85,64 @@ export default {
     UserNameInput,
   },
   computed: {
-    ...mapState(['userName', 'token', 'rankedUsers', 'blocks', 'gridX']),
-    calcGridWidth() {
-      return () => this.$window.width / this.gridX;
+    ...mapState(['userName', 'token', 'rankedUsers', 'blocks', 'gridX', 'moveDist']),
+    gridWidth() {
+      return this.$window.width / this.gridX;
     },
     gridY() {
-      return Math.ceil(this.$window.height / this.calcGridWidth());
+      return Math.ceil(this.$window.height / this.gridWidth);
     },
     infinitLine() {
       // 盤面が現表示領域のみであれば1、画面スクロール可能にして無限に盤面が続いているように見せるには2に変更
-      return 1;
+      return 2;
     },
-    calcCenterPos() {
-      return () => ({
+    centerPos() {
+      return {
         x: this.$window.width / 2,
         y: this.$window.height / 2,
+      };
+    },
+    objPos() {
+      return (object) => ({
+        x: this.centerPos.x + this.gridWidth * object.x - this.gridWidth / 2 - this.moveDist.x, // 原点移動量調整
+        y: this.centerPos.y + this.gridWidth * object.y - this.gridWidth / 2 - this.moveDist.y, // 原点移動量調整
       });
     },
-    calcObjPos() {
-      return (object) => {
-        const centerPos = this.calcCenterPos();
-        return {
-          x: centerPos.x + 30 * object.x - 15,
-          y: centerPos.y + 30 * object.y - 15,
-        };
-      };
+    borderPos() {
+      return (i) => ({
+        x:
+          this.centerPos.x -
+          // Gridの中心が座標となるよう修正
+          this.gridWidth / 2 -
+          // 画面サイズとグリッド幅から始点計算
+          Math.ceil(this.$window.width / 2 / this.gridWidth) * this.gridWidth -
+          // 移動量調整
+          (this.moveDist.x % this.gridWidth) +
+          this.gridWidth * (i - 1),
+        y:
+          this.centerPos.y - // 中心座標
+          // Gridの中心が座標となるよう修正
+          this.gridWidth / 2 -
+          // 画面サイズとグリッド幅から始点
+          Math.ceil(this.$window.height / 2 / this.gridWidth) * this.gridWidth +
+          // 移動量調整
+          (this.moveDist.y % this.gridWidth) +
+          this.gridWidth * (i - 1),
+      });
     },
-    calcBorderPos() {
-      return (i) => {
-        const gridWidth = this.calcGridWidth();
-        return {
-          x:
-            this.calcCenterPos().x -
-            // Gridの中心が座標となるよう修正
-            gridWidth / 2 -
-            // 画面サイズとグリッド幅から始点計算
-            Math.ceil(this.$window.width / 2 / gridWidth) * gridWidth +
-            gridWidth * (i - 1),
-          y:
-            this.calcCenterPos().y - // 中心座標
-            // Gridの中心が座標となるよう修正
-            gridWidth / 2 -
-            // 画面サイズとグリッド幅から始点
-            Math.ceil(this.$window.height / 2 / gridWidth) * gridWidth +
-            gridWidth * (i - 1),
-        };
-      };
+    originOfCoordinates() {
+      return { x: 0, y: 0 };
+    },
+    visibleName() {
+      return !this.token && !this.overlay;
+    },
+    visibleRanking() {
+      return this.token && !this.overlay;
     },
   },
   methods: {
     ...mapActions(['getAccessToken', 'getField']),
+    ...mapMutations(['setInitPos', 'gridMove', 'resetInitPos']),
     registerName(inputName) {
       this.getAccessToken(inputName);
     },
@@ -118,9 +152,54 @@ export default {
     },
     init() {
       this.setIntervalObj = setInterval(() => {
-        // eslint-disable-next-line
-        this.getField()
+        this.getField();
       }, 1000);
+    },
+    styles(block) {
+      if (!block.exploded) return false;
+      return {
+        top: `${this.centerPos.y +
+          this.gridWidth * block.y -
+          this.gridWidth / 2 -
+          this.moveDist.y}px`,
+        left: `${this.centerPos.x +
+          this.gridWidth * block.x -
+          this.gridWidth / 2 -
+          this.moveDist.x}px`,
+      };
+    },
+    getRelativeCoordinates(e) {
+      return {
+        // 原点移動量の調整は今時点では行わない
+        x: Math.round((e.pageX - this.centerPos.x) / this.gridWidth),
+        y: -Math.round((e.pageY - this.centerPos.y) / this.gridWidth),
+      };
+    },
+    onTouchStart(e) {
+      // ダブルタップ無効化
+      if (Date.now() - this.touchTime < 350) {
+        e.preventDefault();
+      }
+
+      // drag基準地点
+      const position = {
+        x: e.pageX || e.changedTouches[0].clientX,
+        y: e.pageY || e.changedTouches[0].clientY,
+      };
+
+      this.setInitPos(position);
+    },
+    onTouchMove(e) {
+      // drag現在地点
+      const movePos = {
+        x: e.pageX || e.changedTouches[0].clientX,
+        y: e.pageY || e.changedTouches[0].clientY,
+      };
+      this.gridMove(movePos);
+    },
+    onTouchEnd() {
+      this.touchTime = Date.now();
+      this.resetInitPos();
     },
   },
 };
@@ -133,6 +212,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
+  background-color: gray;
 }
 .field {
   position: absolute;
@@ -140,7 +220,10 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: gray;
+}
+.target {
+  width: 100%;
+  height: 100%;
 }
 .border-x,
 .border-y {
@@ -149,6 +232,21 @@ export default {
 }
 .rect {
   fill: lightgray;
+  stroke: black;
+  stroke-width: 0.5px;
+}
+.splite-bomb {
+  overflow: hidden;
+  background-image: url('../assets/img.png');
+  background-repeat: no-repeat;
+  background-position: -301px 0px;
+  width: 30px;
+  height: 30px;
+  position: relative;
+}
+/* 原点がわかりやすいように識別 */
+.rect2 {
+  fill: yellow;
   stroke: black;
   stroke-width: 0.5px;
 }

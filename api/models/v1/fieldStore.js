@@ -28,4 +28,10 @@ module.exports = {
       adds.length = 0;
     }
   },
+
+  // 検証への使用度高関数のため保存
+  // async deleteData() {
+  //   await FieldHistoryModel.deleteMany();
+  //   prefield.length = 0;
+  // },
 };

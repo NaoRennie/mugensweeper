@@ -1,4 +1,7 @@
 const pkg = require('./package');
+require('dotenv').config();
+
+const { AXIOS_BASE } = process.env;
 
 module.exports = {
   mode: 'spa',
@@ -29,7 +32,7 @@ module.exports = {
   /*
    ** Plugins to load before mounting the App
    */
-  plugins: ['@/plugins/axios', '@/plugins/window-state'],
+  plugins: ['@/plugins/axios', '@/plugins/window-state', '@/plugins/vue-touch'],
 
   /*
    ** Nuxt.js modules
@@ -43,6 +46,7 @@ module.exports = {
    */
   axios: {
     // See https://github.com/nuxt-community/axios-module#options
+    baseURL: AXIOS_BASE || 'http://localhost:10000/dev',
   },
 
   /*
