@@ -11,10 +11,10 @@ module.exports = {
   async initData() {
     const fields = await FieldHistoryModel.find({}, propFilter).lean();
     actionId = fields.length;
+    field.length = 0;
     unsavedField.length = 0;
     for (let i = 0; i < fields.length; i += 1) {
-      const f = post2res(fields[i], field);
-      field.push(f);
+      field.push(post2res(fields[i], field));
     }
   },
 
@@ -23,13 +23,15 @@ module.exports = {
   },
 
   addData(add) {
-    const status = judgeField(add, field);
-    const record = { ...add, actionId, status };
-    if (status) field.push(post2res(add, field));
-
-    actionId += 1;
+    const recordtime = Math.round(new Date().getTime() / 1000);
+    const record = { ...add, actionId, recordtime };
     unsavedField.push(record);
-    return status;
+    actionId += 1;
+    if (judgeField(add, field)) {
+      field.push(post2res(add, field));
+      return true;
+    }
+    return false;
   },
 
   async saveData() {

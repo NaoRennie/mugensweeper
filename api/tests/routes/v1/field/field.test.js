@@ -8,7 +8,8 @@ const { connectDB, disconnectDB, dropDB } = require('../../../../database.js');
 const ZERO00000 = 0;
 const FIRST_ONE = 'u0:0:op';
 const propFilter = '-_id -__v';
-const time = Math.round(new Date().getTime() / 1000);
+const token =
+  'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJleGFtcGxlMCIsImV4cCI6MTcwNTc0MjM4OSwiYXVkIjoibXVnZW5zd2VlcGVycyIsImlzcyI6Im11Z2Vuc3dlZXBlcnMifQ.ISinmaTZDcOzHM4q4MALgmnSA7x6wN9pa1wkRGvlRWw';
 
 describe('field情報を返せるかどうか', () => {
   beforeAll(connectDB);
@@ -27,19 +28,100 @@ describe('field情報を返せるかどうか', () => {
       ZERO00000, ZERO00000, FIRST_ONE, ZERO00000, ZERO00000,
       ZERO00000, ZERO00000, 'u2:1:op', ZERO00000, ZERO00000,
       ZERO00000, 'u1:2:op', ZERO00000, ZERO00000, ZERO00000,
-    ], time);
+    ]);
 
     // prettier-ignore
     const fieldHistory2 = [
-      { x: 0, y: 0, userId: 0, actionId: 0, recordtime: time, action: 'opened' },
-      { x: 0, y: -1, userId: 2, actionId: 1, recordtime: time,  action: 'opened',  },
-      { x: -1, y: -2, userId: 1, actionId: 2, recordtime: time,  action: 'opened', },
-      { x: 1, y: 1, userId: 3, actionId: 3, recordtime: time, action: 'opened' },
-      { x: 2, y: 2,  userId: 1, actionId: 4, recordtime: time, action: 'opened' },
-      { x: 1, y: 2, userId: 2, actionId: 5, recordtime: time, action: 'opened' },
+      { x: 0, y: 0, userId: 0, actionId: 0,  action: 'opened' },
+      { x: 0, y: -1, userId: 2, actionId: 1,  action: 'opened',  },
+      { x: -1, y: -2, userId: 1, actionId: 2,  action: 'opened', },
+      { x: 1, y: 1, userId: 3, actionId: 3,  action: 'opened' },
+      { x: 2, y: 2,  userId: 1, actionId: 4, action: 'opened' },
+      { x: 1, y: 2, userId: 2, actionId: 5, action: 'opened' },
     ];
     // Then
     expect(fieldHistory).toEqual(expect.arrayContaining(fieldHistory2));
+  });
+
+  it('フロント側からのHTTPリクエストヘッダーにサーバ側userStore内に存在するuserIdに対応したtokenが存在しない場合の動作テスト', async () => {
+    // Given
+    // prettier-ignore
+    const fieldHistory = array2fieldHistory([
+        ZERO00000, ZERO00000, ZERO00000, 'u2:5:op', 'u1:4:op',
+        ZERO00000, ZERO00000, ZERO00000, 'u3:3:op', ZERO00000,
+        ZERO00000, ZERO00000, FIRST_ONE, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, 'u2:1:op', ZERO00000, ZERO00000,
+        ZERO00000, 'u1:2:op', ZERO00000, ZERO00000, ZERO00000,
+      ]);
+
+    // prettier-ignore
+    const add = array2fieldHistory([
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, 'u2:6:op',
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+      ]);
+
+    // When
+    await FieldHistoryModel.insertMany(fieldHistory);
+    await initData();
+    const beforePostField = getData();
+
+    const noTokenGet = (await chai.request(app).get('/v1/field')).body;
+
+    const withTokenGet = (await chai
+      .request(app)
+      .get('/v1/field')
+      .set('Authorization', token)).body; // headerにテスト用tokenセット
+
+    await chai
+      .request(app)
+      .post('/v1/field')
+      .set('content-type', 'application/x-www-form-urlencoded')
+      .send(add[0]);
+
+    const noTokenPost = (await chai
+      .request(app)
+      .get('/v1/field')
+      .set('Authorization', token)).body; // headerにテスト用tokenセット
+
+    await chai
+      .request(app)
+      .post('/v1/field')
+      .set('content-type', 'application/x-www-form-urlencoded')
+      .set('Authorization', token) // headerにテスト用tokenセット
+      .send(add[0]);
+
+    const withTokenPost = (await chai
+      .request(app)
+      .get('/v1/field')
+      .set('Authorization', token)).body; // headerにテスト用tokenセット
+
+    // Then
+    const rsMatchers = [
+      { x: 0, y: 0 },
+      { x: 0, y: -1 },
+      { x: -1, y: -2 },
+      { x: 1, y: 1 },
+      { x: 2, y: 2 },
+      { x: 1, y: 2 },
+      { x: 3, y: 2 },
+    ];
+
+    // ・Response
+    const result = [];
+    for (let n = 0; n < withTokenPost.length; n += 1) {
+      result.push({ x: +withTokenPost[n].x, y: +withTokenPost[n].y });
+      expect(withTokenPost[n]).toHaveProperty('exploded');
+      expect(withTokenPost[n]).toHaveProperty('bombCount');
+    }
+    expect(noTokenGet).toEqual({}); // ヘッダーにtoken無しでgetした場合の確認
+    expect(withTokenGet).toHaveLength(beforePostField.length); // ヘッダーにtoken有りでgetした場合の確認
+    expect(noTokenPost).toHaveLength(beforePostField.length); // ヘッダーにtoken無しでpost後にgetした場合の確認
+    expect(result).toEqual(expect.arrayContaining(rsMatchers)); // ヘッダーにtoken有りでpost後にgetした場合の確認
   });
 
   it('DBにfieldHistoryを追加するテスト', async () => {
@@ -51,7 +133,7 @@ describe('field情報を返せるかどうか', () => {
         ZERO00000, ZERO00000, FIRST_ONE, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, 'u2:1:op', ZERO00000, ZERO00000,
         ZERO00000, 'u1:2:op', ZERO00000, ZERO00000, ZERO00000,
-      ], time);
+      ]);
 
     // prettier-ignore
     const add = array2fieldHistory([
@@ -61,16 +143,17 @@ describe('field情報を返せるかどうか', () => {
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
-        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000
-      ], time);
+        ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
+      ]);
 
     // prettier-ignore
-    const dupli = { x: 2, y: 2, userId: 4, actionId: 9,
-       recordtime: time, action: 'opened', status: false, };
+    const dupli = { x: 2, y: 2, userId: 4, actionId: 9, action: 'opened', status: false };
 
     // When
-    const beforePostField = await FieldHistoryModel.insertMany(fieldHistory);
+    await FieldHistoryModel.deleteMany();
+    await FieldHistoryModel.insertMany(fieldHistory);
     await initData();
+    const beforePostField = getData();
     add.forEach(addData);
     addData(dupli);
     const afterPostField = getData();
@@ -82,25 +165,16 @@ describe('field情報を返せるかどうか', () => {
         .request(app)
         .post('/v1/field')
         .set('content-type', 'application/x-www-form-urlencoded')
+        .set('Authorization', token) // headerにテスト用tokenセット
         .send(add[i]);
     }
 
-    const { body } = await chai.request(app).get('/v1/field');
+    const { body } = await chai
+      .request(app)
+      .get('/v1/field')
+      .set('Authorization', token); // headerにテスト用tokenセット
 
     // Then
-    const dbMatchers = [
-      { x: 0, y: 0, userId: '0', actionId: 0, recordtime: time, action: 'opened' },
-      { x: 0, y: -1, userId: '2', actionId: 1, recordtime: time, action: 'opened' },
-      { x: -1, y: -2, userId: '1', actionId: 2, recordtime: time, action: 'opened' },
-      { x: 1, y: 1, userId: '3', actionId: 3, recordtime: time, action: 'opened' },
-      { x: 2, y: 2, userId: '1', actionId: 4, recordtime: time, action: 'opened' },
-      { x: 1, y: 2, userId: '2', actionId: 5, recordtime: time, action: 'opened' },
-      { x: 3, y: 2, userId: '2', actionId: 6, recordtime: time, action: 'opened', status: true },
-      { x: 3, y: 3, userId: '1', actionId: 7, recordtime: time, action: 'opened', status: true },
-      { x: -2, y: 3, userId: '4', actionId: 8, recordtime: time, action: 'opened', status: false },
-      { x: 2, y: 2, userId: '4', actionId: 9, recordtime: time, action: 'opened', status: false },
-    ];
-
     const rsMatchers = [
       { x: 0, y: -1 },
       { x: -1, y: -2 },
@@ -114,7 +188,14 @@ describe('field情報を返せるかどうか', () => {
     // ・DB
     expect(afterPostField).toHaveLength(beforePostField.length + 2);
     expect(afterSaveField).toHaveLength(beforePostField.length + 4);
-    expect(afterSaveField).toEqual(expect.arrayContaining(dbMatchers));
+    // テストではaddDataを経由しないため、actionId 0-5はrecordtime無し
+    let recCount = 0;
+    afterSaveField.forEach((f) => {
+      if (f.recordtime !== undefined) {
+        recCount += 1;
+      }
+    });
+    expect(recCount).toEqual(4);
 
     // ・Response
     const result = [];
@@ -135,7 +216,7 @@ describe('field情報を返せるかどうか', () => {
         ZERO00000, ZERO00000, FIRST_ONE, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, 'u2:2:op', ZERO00000, ZERO00000,
         ZERO00000, 'u1:1:op', ZERO00000, ZERO00000, ZERO00000,
-      ], time);
+      ]);
 
     // prettier-ignore
     const add = array2fieldHistory([
@@ -144,7 +225,7 @@ describe('field情報を返せるかどうか', () => {
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000,
         ZERO00000, ZERO00000, ZERO00000, ZERO00000, ZERO00000
-      ], time);
+      ]);
 
     // When
     await FieldHistoryModel.insertMany(fieldHistory);
